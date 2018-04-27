@@ -1,0 +1,14 @@
+<% content_for :header_links do %>
+  <a href="/lists">All Lists</a>
+<% end %>
+
+<section id="todos">
+  <header>
+    <h2><%= @list[:name] %></h2>
+    <ul>
+      <li>
+        <a class='edit' href="/lists/<%= @id %>/edit">Edit</a>
+      </li>
+    </ul>
+  </header>
+</section>
