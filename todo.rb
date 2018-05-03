@@ -56,6 +56,7 @@ end
 get '/lists/:list_id' do
   @list_id = params[:list_id].to_i
   @list = session[:lists][@list_id]
+  @todos = @list[:todos]
 
   erb :list, layout: :layout
 end
@@ -116,7 +117,7 @@ post '/lists/:id/delete' do
 end
 
 # Add todo's to to a list
-post "/lists/:list_id/todos" do
+post '/lists/:list_id/todos' do
   @list_id = params[:list_id].to_i
   @list = session[:lists][@list_id]
   text = params[:todo].strip
@@ -132,11 +133,36 @@ post "/lists/:list_id/todos" do
   end
 end
 
+# Toggle todo "completed" on or off
+post '/lists/:list_id/todos/:todo_id' do
+  list_id = params[:list_id].to_i
+  todo_id = params[:todo_id].to_i
+  todo = session[:lists][list_id][:todos][todo_id]
+
+  is_completed = params[:completed] == "true"
+  todo[:completed] = is_completed
+  session[:success] = "Todo has been updated."
+
+  redirect "/lists/#{list_id}"
+end
+
+# Toggle all todo's complete or uncomplete
+post '/lists/:list_id/check_all' do
+  list_id = params[:list_id].to_i
+  todos = session[:lists][list_id][:todos]
+  todos.each { |todo| todo[:completed] = true }
+  session[:success] = "All todos has been completed."
+
+
+  redirect "/lists/#{list_id}"
+end
+
 # Permanently delete todo from list
-post "/lists/:list_id/:todo_id/delete" do
+post "/lists/:list_id/todos/:todo_id/delete" do
   list_id = params[:list_id].to_i
   todo_id = params[:todo_id].to_i
   session[:lists][list_id][:todos].delete_at(todo_id)
+  session[:success] = "The todo has been deleted"
 
   redirect "/lists/#{list_id}"
 end
@@ -167,5 +193,64 @@ helpers do
 
   def valid_length?(list_name)
     (1..100).cover?(list_name.size)
+  end
+
+  # toggles checkbox on or off for todo
+  def toggle_check_box(todo)
+    case todo[:completed]
+    when true then todo[:completed] = false
+    when false then todo[:completed] = true
+    end
+  end
+  
+  def completed_todos(list)
+    list[:todos].count { |todo| todo[:completed] == true }
+  end
+
+  def list_class(list)
+    list_class = []
+    list_class << 'complete' if list_completed?(list)
+    list_class.join(' ')
+  end
+
+  def todo_class(todo)
+    todo_class = []
+    todo_class << 'complete' if todo[:completed] == true
+    todo_class.join(' ')
+  end
+  
+  def list_completed?(list)
+    return false if list[:todos].size < 1
+    list[:todos].all? { |todo| todo[:completed] == true }
+  end
+
+  def sort_lists(lists, &block)
+    incompleted_lists = {}
+    completed_lists = {}
+
+    lists.each_with_index do |list, index|
+      if list_completed?(list)
+        completed_lists[list] = index
+      else
+        incompleted_lists[list] = index
+      end
+    end
+    incompleted_lists.each(&block)
+    completed_lists.each(&block)
+  end
+
+  def sort_todos(todos, &block)
+    incompleted_lists = {}
+    completed_lists = {}
+
+    todos.each_with_index do |todo, index|
+      if todo[:completed] == true
+        completed_lists[todo] = index
+      else
+        incompleted_lists[todo] = index
+      end
+    end
+    incompleted_lists.each(&block)
+    completed_lists.each(&block)
   end
 end
