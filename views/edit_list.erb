@@ -11,7 +11,7 @@
   </header>
 </section>
 
-<form action="/lists/<%= @id %>/edit" method="post">
+<form action="/lists/<%= @list_id %>/edit" method="post">
   <dl>
     <dt>
       <label for="list_name">Enter your new name for the list:</label>
@@ -22,6 +22,6 @@
   </dl>
   <fieldset class="actions">
     <input type="submit" value="Save">
-    <a href="/lists/<%= params[:id] %>">Cancel</a>
+    <a href="/lists/<%= @list_id %>">Cancel</a>
   </fieldset>
 </form>
