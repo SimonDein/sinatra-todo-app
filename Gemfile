@@ -2,6 +2,10 @@
 
 source 'https://rubygems.org'
 
+group :production do
+  gem 'puma'
+end
+
 ruby '2.4.0'
 
 gem 'erubis'
