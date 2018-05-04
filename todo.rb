@@ -1,15 +1,9 @@
 # frozen_string_literal: true
-#
 
-require 'bundler/setup'
 require 'sinatra'
 require 'sinatra/content_for'
-require 'sinatra/reloader'
+require 'sinatra/reloader' if development?
 require 'tilt/erubis'
-
-require 'pry'
-
-disable :logging # Output to terminal more readable (no double logging entries)
 
 configure do
   enable :sessions
@@ -18,19 +12,12 @@ end
 
 before do
   session[:lists] ||= [
-    {name: "Today",
-     todos: [{name: "Run away", completed: false},
-             {name: "Dance on a dragon", completed: false},
-             {name: "Fly into the kraken", completed: false}]
-    }
+    { name: 'Today',
+      todos: [{ name: 'Workout', completed: false },
+              { name: 'Do loundry', completed: false },
+              { name: 'Eat ice cream', completed: false }] }
   ]
 end
-
-####### Overview of route handling ####
-# GET  /lists          -> view all lists
-# GET  /lists/new      -> new list form
-# POST /lists          -> create new list
-# GET  /lists/1 -> view specific list and todos
 
 #####################################################################################
 ################################# Displayed Routes ##################################
@@ -92,7 +79,7 @@ post '/lists/:list_id/edit' do
   @id = params[:list_id].to_i
   @list = session[:lists][@id]
   list_name = params[:list_name].strip
-  
+
   error = list_name_error(list_name)
   if error
     @list = session[:lists][@id]
@@ -120,6 +107,7 @@ end
 post '/lists/:list_id/todos' do
   @list_id = params[:list_id].to_i
   @list = session[:lists][@list_id]
+  @todos = @list[:todos]
   text = params[:todo].strip
 
   error = todo_name_error(text)
@@ -127,8 +115,8 @@ post '/lists/:list_id/todos' do
     session[:error] = error
     erb :list, layout: :layout
   else
-    @list[:todos] << {name: text, completed: false}
-    session[:success] = "The todo was added."
+    @list[:todos] << { name: text, completed: false }
+    session[:success] = 'The todo was added.'
     redirect "/lists/#{@list_id}"
   end
 end
@@ -139,9 +127,9 @@ post '/lists/:list_id/todos/:todo_id' do
   todo_id = params[:todo_id].to_i
   todo = session[:lists][list_id][:todos][todo_id]
 
-  is_completed = params[:completed] == "true"
+  is_completed = params[:completed] == 'true'
   todo[:completed] = is_completed
-  session[:success] = "Todo has been updated."
+  session[:success] = 'Todo has been updated.'
 
   redirect "/lists/#{list_id}"
 end
@@ -151,18 +139,17 @@ post '/lists/:list_id/check_all' do
   list_id = params[:list_id].to_i
   todos = session[:lists][list_id][:todos]
   todos.each { |todo| todo[:completed] = true }
-  session[:success] = "All todos has been completed."
-
+  session[:success] = 'All todos has been completed.'
 
   redirect "/lists/#{list_id}"
 end
 
 # Permanently delete todo from list
-post "/lists/:list_id/todos/:todo_id/delete" do
+post '/lists/:list_id/todos/:todo_id/delete' do
   list_id = params[:list_id].to_i
   todo_id = params[:todo_id].to_i
   session[:lists][list_id][:todos].delete_at(todo_id)
-  session[:success] = "The todo has been deleted"
+  session[:success] = 'The todo has been deleted'
 
   redirect "/lists/#{list_id}"
 end
@@ -182,9 +169,7 @@ helpers do
   end
 
   def todo_name_error(name)
-    if !valid_length?(name)
-      'Todo name must be between 1 and 100 characters.'
-    end
+    'Todo name must be between 1 and 100 characters.' unless valid_length?(name)
   end
 
   def valid_name?(list_name)
@@ -202,7 +187,7 @@ helpers do
     when false then todo[:completed] = true
     end
   end
-  
+
   def completed_todos(list)
     list[:todos].count { |todo| todo[:completed] == true }
   end
@@ -218,39 +203,23 @@ helpers do
     todo_class << 'complete' if todo[:completed] == true
     todo_class.join(' ')
   end
-  
+
   def list_completed?(list)
-    return false if list[:todos].size < 1
+    false if list[:todos].empty?
     list[:todos].all? { |todo| todo[:completed] == true }
   end
 
-  def sort_lists(lists, &block)
-    incompleted_lists = {}
-    completed_lists = {}
+  def sort_lists(lists)
+    completed_lists, incompleted_lists = lists.partition { |list| list_completed?(list) }
 
-    lists.each_with_index do |list, index|
-      if list_completed?(list)
-        completed_lists[list] = index
-      else
-        incompleted_lists[list] = index
-      end
-    end
-    incompleted_lists.each(&block)
-    completed_lists.each(&block)
+    incompleted_lists.each { |list| yield list, lists.index(list) }
+    completed_lists.each { |list| yield list, lists.index(list) }
   end
 
-  def sort_todos(todos, &block)
-    incompleted_lists = {}
-    completed_lists = {}
+  def sort_todos(todos)
+    completed_todos, incompleted_todos = todos.partition { |todo| todo[:completed] }
 
-    todos.each_with_index do |todo, index|
-      if todo[:completed] == true
-        completed_lists[todo] = index
-      else
-        incompleted_lists[todo] = index
-      end
-    end
-    incompleted_lists.each(&block)
-    completed_lists.each(&block)
+    incompleted_todos.each { |todo| yield todo, todos.index(todo) }
+    completed_todos.each { |todo| yield todo, todos.index(todo) }
   end
 end
