@@ -1,3 +1,4 @@
+require 'pry'
 # frozen_string_literal: true
 
 require 'sinatra'
@@ -8,15 +9,25 @@ require 'tilt/erubis'
 configure do
   enable :sessions
   set :session_secret, 'secret'
+  set :erb, :escape_html => true
 end
 
 before do
   session[:lists] ||= [
     { name: 'Today',
-      todos: [{ name: 'Workout', completed: false },
-              { name: 'Do loundry', completed: false },
-              { name: 'Eat ice cream', completed: false }] }
+      todos: [{ id: 0, name: 'Workout', completed: false },
+              { id: 1, name: 'Do loundry', completed: false },
+              { id: 2, name: 'Eat ice cream', completed: false }] }
   ]
+end
+
+# Validating list exists - redirect if not
+def load_list(index)
+  list = session[:lists][index] if index && session[:lists][index]
+  return list if list
+
+  session[:error] = 'The list could not be found'
+  redirect '/lists'
 end
 
 #####################################################################################
@@ -42,7 +53,7 @@ end
 # View specific list
 get '/lists/:list_id' do
   @list_id = params[:list_id].to_i
-  @list = session[:lists][@list_id]
+  @list = load_list(@list_id)
   @todos = @list[:todos]
 
   erb :list, layout: :layout
@@ -51,7 +62,7 @@ end
 # View "edit list" form
 get '/lists/:list_id/edit' do
   @list_id = params[:list_id].to_i
-  @list = session[:lists][@list_id]
+  @list = load_list(@list_id)
   erb :edit_list, layout: :layout
 end
 
@@ -77,7 +88,7 @@ end
 # Update a todo list name
 post '/lists/:list_id/edit' do
   @id = params[:list_id].to_i
-  @list = session[:lists][@id]
+  @list = load_list(@list_id)
   list_name = params[:list_name].strip
 
   error = list_name_error(list_name)
@@ -99,14 +110,25 @@ post '/lists/:id/delete' do
   list_name = session[:lists][id][:name]
   session[:lists].delete_at(id)
 
-  session[:success] = "The list \"#{list_name}\" has been removed"
-  redirect '/lists'
+  # If ajax request
+  if env["HTTP_X_REQUESTED_WITH"] == "XMLHttpRequest"
+    '/lists'
+  else
+    session[:success] = "The list \"#{list_name}\" has been removed"
+    redirect '/lists'
+  end
+end
+
+# generate next id_num for todo's in todolist
+def next_todo_id(todos)
+  max = todos.map { |todo| todo[:id] }.max || 0
+  max + 1
 end
 
 # Add todo's to to a list
 post '/lists/:list_id/todos' do
   @list_id = params[:list_id].to_i
-  @list = session[:lists][@list_id]
+  @list = load_list(@list_id)
   @todos = @list[:todos]
   text = params[:todo].strip
 
@@ -115,7 +137,9 @@ post '/lists/:list_id/todos' do
     session[:error] = error
     erb :list, layout: :layout
   else
-    @list[:todos] << { name: text, completed: false }
+    id = next_todo_id(@list[:todos])
+    
+    @list[:todos] << { id: id, name: text, completed: false }
     session[:success] = 'The todo was added.'
     redirect "/lists/#{@list_id}"
   end
@@ -124,8 +148,9 @@ end
 # Toggle todo "completed" on or off
 post '/lists/:list_id/todos/:todo_id' do
   list_id = params[:list_id].to_i
+  list = load_list(list_id)
   todo_id = params[:todo_id].to_i
-  todo = session[:lists][list_id][:todos][todo_id]
+  todo = list[:todos].find { |todo| todo[:id] == todo_id }
 
   is_completed = params[:completed] == 'true'
   todo[:completed] = is_completed
@@ -147,11 +172,20 @@ end
 # Permanently delete todo from list
 post '/lists/:list_id/todos/:todo_id/delete' do
   list_id = params[:list_id].to_i
+  list = load_list(list_id)
   todo_id = params[:todo_id].to_i
-  session[:lists][list_id][:todos].delete_at(todo_id)
-  session[:success] = 'The todo has been deleted'
 
-  redirect "/lists/#{list_id}"
+  list[:todos].delete_if do |todo|
+    todo[:id] == todo_id
+  end
+
+  # If ajax request
+  if env["HTTP_X_REQUESTED_WITH"] == "XMLHttpRequest"
+    status 204
+  else
+    session[:success] = 'The todo has been deleted'
+    redirect "/lists/#{list_id}"
+  end
 end
 
 #####################################################################################
@@ -205,7 +239,7 @@ helpers do
   end
 
   def list_completed?(list)
-    false if list[:todos].empty?
+    return false if list[:todos].empty?
     list[:todos].all? { |todo| todo[:completed] == true }
   end
 
