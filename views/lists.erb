@@ -3,13 +3,9 @@
 <% end %>
 
 <ul id="lists">
-  <% sort_lists(@lists) do |list, index| %>
-    <% if list_completed?(list) %>
-      <li class="complete">
-    <% else %>
-      <li>
-    <% end %>
-      <a href="/lists/<%= index %>">
+  <% sort_lists(@lists) do |list| %>
+    <li class="<%= list_class(list) %>">
+      <a href="/lists/<%= list[:id] %>">
         <h2><%= list[:name] %></h2>
         <p><%= completed_todos(list) %>/<%= list[:todos].size %></p>
       </a>
